@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../main.dart';
+import '../services/notification_service.dart';
 import '../utils/medication_tile.dart';
 
 import '../models/medication.dart';
@@ -16,6 +17,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+
+
+
   // Aquí iría la carga real desde StorageService, por ahora mock:
   final List<Medication> medications = [
     Medication(
@@ -33,7 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
       frequencyPerDay: 2,
       time: DateTime.now().add(const Duration(hours: 4)),
     ),
+
   ];
+
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +49,18 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('MindMeds Home'),
         actions: [
+          ElevatedButton(
+            onPressed: () {
+              NotificationService().showNotification(
+                id: 1,
+                title: 'Test Notification',
+                body: 'This is a test notification',
+                payload: 'TestPayload',
+              );
+            },
+            child: const Text('Show Notification Now'),
+          ),
+
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -112,4 +130,5 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
 }
