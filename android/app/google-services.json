@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "393059911113",
+    "project_id": "mindmed-a2306",
+    "storage_bucket": "mindmed-a2306.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:393059911113:android:1a61fd904c713929b2d418",
+        "android_client_info": {
+          "package_name": "isec.pt.mindmeds"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9a0r6hErQ4YIoKAinyslfYbyuLFOR7nc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
