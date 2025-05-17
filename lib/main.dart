@@ -1,25 +1,80 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+
+
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'package:mindmeds/screens/accessibility_settings_screen.dart';
+import 'package:mindmeds/screens/add_medication_screen.dart';
+import 'package:mindmeds/screens/history_screen.dart';
+import 'package:mindmeds/screens/home_screen.dart';
+import 'package:mindmeds/screens/login_screen.dart';
+import 'package:mindmeds/screens/profile_screen.dart';
+import 'package:mindmeds/screens/register_screen.dart';
+import 'package:mindmeds/screens/reminder_popup.dart';
 import 'package:mindmeds/services/notification_service.dart';
+import 'package:mindmeds/services/permission_service.dart';
 import 'package:mindmeds/services/storage_service.dart';
 import 'package:mindmeds/services/tts_service.dart';
-
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/register_screen.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 
-void main() async {
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar timezone y establecer zona local
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Europe/Lisbon'));
+
+  // Inicializar Firebase
+  await Firebase.initializeApp();
+
+  // Configuración inicial de notificaciones
+  const AndroidInitializationSettings initializationSettingsAndroid =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings =
+  InitializationSettings(android: initializationSettingsAndroid);
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // Solicitar permiso para notificaciones en Android 13+
+  final androidImplementation = flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>();
+
+  if (androidImplementation != null) {
+    final granted = await androidImplementation.requestPermission();
+    print('Notification permission granted: $granted');
+  }
+
+  // Inicializar permisos adicionales si tienes (ejemplo)
+  await requestNotificationPermission();
+
+  // Inicializar Android Alarm Manager
+  await AndroidAlarmManager.initialize();
+
+  // Inicializar otros servicios
   await NotificationService().init();
   await TtsService().init();
   await StorageService().init();
-  await Firebase.initializeApp();
+
   runApp(const MindMedsApp());
+}
+
+extension on AndroidFlutterLocalNotificationsPlugin {
+  requestPermission() {}
 }
 class MindMedsApp extends StatelessWidget {
   const MindMedsApp({super.key});
+
 
   @override
   Widget build(BuildContext context) {
@@ -86,14 +141,47 @@ class MindMedsApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const GlobalBackground(
-        child: LoginScreen(),
-      ),
+      home: const AuthGate(),
+      routes: {
+        '/login': (c) => const LoginScreen(),
+        '/register': (c) => const RegisterScreen(),
+        '/home': (c) => const HomeScreen(),
+        '/add_medication': (c) => const AddMedicationScreen(),
+        '/reminder_popup': (c) => const ReminderPopupScreen(),
+        '/history': (c) => const HistoryScreen(),
+        '/profile': (c) => const ProfileScreen(),
+        '/accessibility': (c) => const AccessibilitySettingsScreen(),
+      },
     );
   }
 }
+
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  Future<void> _showNotificationDialog(BuildContext context) async {
+    await Future.delayed(Duration.zero); // Asegura que se ejecute después del build
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Permiso de notificaciones'),
+        content: const Text(
+            'Necesitamos permiso para recordarte tomar tus medicamentos.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              requestNotificationPermission();
+            },
+            child: const Text('Permitir'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +190,9 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           // Loading
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         } else if (snapshot.hasData) {
           // Usuario logueado: ir a Home
           return const GlobalBackground(child: HomeScreen());

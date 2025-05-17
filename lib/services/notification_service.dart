@@ -1,39 +1,84 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;   // para manejo de zona horaria
-import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
+@pragma('vm:entry-point')
+void medicationAlarmCallback(int id) async {
+  final now = DateTime.now();
+  print("[$now] Medication alarm triggered! Alarm ID: $id");
+
+  // Inicializa el plugin de notificaciones dentro del callback
+  const AndroidInitializationSettings initializationSettingsAndroid =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  final InitializationSettings initializationSettings =
+  InitializationSettings(android: initializationSettingsAndroid);
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'med_channel',
+    'Medication Reminders',
+    channelDescription: 'Medication reminder notifications',
+    importance: Importance.max,
+    priority: Priority.high,
+  );
+
+  const NotificationDetails notificationDetails =
+  NotificationDetails(android: androidDetails);
+
+  await flutterLocalNotificationsPlugin.show(
+    id,
+    'Medication Reminder',
+    'It\'s time to take your medication!',
+    notificationDetails,
+  );
+}
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-
   NotificationService._internal();
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
   FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    tzdata.initializeTimeZones();
+    print('[NotificationService] Initializing notifications');
+    // Inicialización si es necesaria
+  }
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      // Puedes agregar permisos aquí si quieres:
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-      //onDidReceiveLocalNotification: (id, title, body, payload) async { /* ... */ },
+
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledDate,
+  }) async {
+    print('[NotificationService] Scheduling notification: id=$id, title="$title", body="$body", at $scheduledDate');
+
+    const androidDetails = AndroidNotificationDetails(
+      'medication_channel',
+      'Medication Reminders',
+      channelDescription: 'Channel for medication reminder notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: 'ticker',
     );
 
-    final initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+    const notificationDetails = NotificationDetails(android: androidDetails);
 
-    await flutterLocalNotificationsPlugin.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) async {
-        // Manejar click en notificación aquí
-        print('Notification clicked with payload: ${response.payload}');
-      },
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id,
+      title,
+      body,
+      scheduledDate,
+      notificationDetails,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation:
+      UILocalNotificationDateInterpretation.absoluteTime,
+      // matchDateTimeComponents: DateTimeComponents.time, // si quieres repetir
     );
   }
 
@@ -43,60 +88,31 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
-    final androidDetails = AndroidNotificationDetails(
+    print('[NotificationService] Showing immediate notification: id=$id, title="$title", body="$body"');
+
+    const androidDetails = AndroidNotificationDetails(
       'medication_channel',
       'Medication Reminders',
-      channelDescription: 'Recordatorios para medicación',
+      channelDescription: 'Channel for medication reminder notifications',
       importance: Importance.max,
       priority: Priority.high,
     );
 
-    final iosDetails = DarwinNotificationDetails();
-
-    final platformDetails =
-    NotificationDetails(android: androidDetails, iOS: iosDetails);
+    const notificationDetails = NotificationDetails(android: androidDetails);
 
     await flutterLocalNotificationsPlugin.show(
       id,
       title,
       body,
-      platformDetails,
+      notificationDetails,
       payload: payload,
     );
   }
 
-  Future<void> scheduleNotification({
-    required int id,
-    required String title,
-    required String body,
-    required DateTime scheduledTime,
-    String? payload,
-  }) async {
-    final androidDetails = AndroidNotificationDetails(
-      'medication_channel',
-      'Medication Reminders',
-      channelDescription: 'Recordatorios para medicación',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-
-    final iosDetails = DarwinNotificationDetails();
-
-    final platformDetails =
-    NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-    final tzScheduled = tz.TZDateTime.from(scheduledTime, tz.local);
-
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tzScheduled,
-      platformDetails,
-      payload: payload,
-      androidAllowWhileIdle: true,
-      uiLocalNotificationDateInterpretation:
-      UILocalNotificationDateInterpretation.absoluteTime,
-    );
+  Future<void> cancelNotification(int id) async {
+    print('[NotificationService] Cancelling notification: id=$id');
+    await flutterLocalNotificationsPlugin.cancel(id);
   }
+
+
 }
