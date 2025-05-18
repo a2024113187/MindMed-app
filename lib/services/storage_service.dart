@@ -9,6 +9,7 @@ class StorageService {
   factory StorageService() => _instance;
   StorageService._internal();
 
+
   SharedPreferences? _prefs;
 
   Future<void> init() async {
@@ -59,4 +60,47 @@ class StorageService {
       return [];
     }
   }
+  Future<bool> saveTakenMedicationsByDate(Map<String, List<String>> data) async {
+    try {
+      final jsonString = jsonEncode(data);
+      return await setString('takenMedicationsByDate', jsonString);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<Map<String, List<String>>> loadTakenMedicationsByDate() async {
+    if (_prefs == null) await init();
+    final jsonString = _prefs!.getString('takenMedicationsByDate');
+    if (jsonString == null) return {};
+    try {
+      final Map<String, dynamic> map = jsonDecode(jsonString);
+      return map.map((key, value) => MapEntry(key, List<String>.from(value)));
+    } catch (e) {
+      return {};
+    }
+
+
+  }
+  Future<bool> saveMedicationHistory(List<Map<String, dynamic>> history) async {
+    try {
+      final jsonString = jsonEncode(history);
+      return await setString('medicationHistory', jsonString);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> loadMedicationHistory() async {
+    if (_prefs == null) await init();
+    final jsonString = _prefs!.getString('medicationHistory');
+    if (jsonString == null) return [];
+    try {
+      final List<dynamic> list = jsonDecode(jsonString);
+      return list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
+    }
+  }
 }
+

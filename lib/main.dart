@@ -21,6 +21,7 @@ import 'package:mindmeds/services/storage_service.dart';
 import 'package:mindmeds/services/tts_service.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:google_fonts/google_fonts.dart';
 
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -81,66 +82,78 @@ class MindMedsApp extends StatelessWidget {
     return MaterialApp(
       title: 'MindMeds',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: Colors.transparent,
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(fontSize: 16, color: Color(0xFF1B1B1B)), // casi negro, buen contraste
-          titleLarge: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF0D4F4F), // teal oscuro
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: const ColorScheme(
+            brightness: Brightness.light,
+            primary: Color(0xFF4FC3F7), // Azul cielo brillante
+            onPrimary: Colors.white,
+            secondary: Color(0xFFBA68C8), // Lavanda / púrpura suave
+            onSecondary: Colors.white,
+            error: Color(0xFFD32F2F),
+            onError: Colors.white,
+            background: Color(0xFFF3F6F9), // Gris muy claro como fondo base
+            onBackground: Color(0xFF1A1A1A),
+            surface: Colors.white,
+            onSurface: Color(0xFF1A1A1A),
           ),
-          labelMedium: TextStyle(
-            color: Color(0xFF0D4F4F), // etiquetas con teal oscuro
-            fontWeight: FontWeight.w600,
+          scaffoldBackgroundColor: const Color(0xFFF3F6F9),
+          textTheme: GoogleFonts.ralewayTextTheme().copyWith(
+            bodyLarge: const TextStyle(fontSize: 18, height: 1.6, color: Color(0xFF1A1A1A)),
+            bodyMedium: const TextStyle(fontSize: 16, height: 1.5, color: Color(0xFF333333)),
+            titleLarge: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF4FC3F7)),
+            labelMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFFBA68C8)),
           ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.teal.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.teal.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.teal.shade400, width: 2),
-          ),
-          filled: false,
-          fillColor: Colors.transparent,
-          prefixIconColor: Colors.teal.shade400,
-          labelStyle: TextStyle(color: Colors.teal.shade700),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal.shade600,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
             ),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.teal.shade700,
-            side: BorderSide(color: Colors.teal.shade300, width: 1.5),
-            shape: RoundedRectangleBorder(
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
             ),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF4FC3F7), width: 2),
+            ),
+            labelStyle: TextStyle(
+              color: Color(0xFFBA68C8),
+              fontWeight: FontWeight.w500,
+            ),
+            hintStyle: TextStyle(
+              color: Color(0xFF9E9E9E),
+              fontSize: 14,
+            ),
+            prefixIconColor: Color(0xFFBA68C8),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4FC3F7),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF4FC3F7),
+              side: const BorderSide(color: Color(0xFF4FC3F7), width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            ),
           ),
         ),
-      ),
+
       home: const AuthGate(),
       routes: {
         '/login': (c) => const LoginScreen(),
@@ -217,9 +230,9 @@ class GlobalBackground extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white,
-            Color(0xFF90CAF9), // azul suave
-            Color(0xFFFFC0CB), // rosa claro
+            Color(0xFFF3F6F9), // Gris claro
+            Color(0xFF4FC3F7), // Azul suave
+            Color(0xFFBA68C8), // Lavanda calmante
           ],
           stops: [0.0, 0.5, 1.0],
         ),

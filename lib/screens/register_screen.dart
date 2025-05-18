@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class GlobalBackground extends StatelessWidget {
   final Widget child;
@@ -77,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    // Validaciones básicas
+    // Validaciones básicas (igual que antes)
     if (_userNameController.text.trim().isEmpty) {
       await _showErrorDialog('Please enter a User Name');
       return;
@@ -112,13 +114,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      // Crear usuario en Firebase Auth
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      User? user = userCredential.user;
+      if (user != null) {
+        // Guardar datos adicionales en Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'userName': _userNameController.text.trim(),
+          'birthDate': _birthDate!.toIso8601String(),
+          'aboutMe': _aboutMeController.text.trim(),
+          'email': user.email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       if (mounted) Navigator.pop(context); // Regresa a login
     } on FirebaseAuthException catch (e) {
       await _showErrorDialog(e.message ?? 'An unknown error occurred');
+    } catch (e) {
+      await _showErrorDialog('Error saving user data: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -146,7 +164,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _birthDate == null ? 'Select Date of Birth' : '${_birthDate!.toLocal()}'.split(' ')[0];
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      // Elimina backgroundColor transparente para que tome el fondo del tema
+      // backgroundColor: Colors.transparent,
+
+      // Si quieres un fondo con gradiente igual que en main.dart, envuelve el body en GlobalBackground:
       body: GlobalBackground(
         child: Center(
           child: SingleChildScrollView(

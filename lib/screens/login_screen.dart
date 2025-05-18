@@ -48,8 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-
-
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -92,7 +90,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -116,13 +116,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   child: TextField(
                     controller: _emailController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: const OutlineInputBorder(),
+                      labelStyle: textTheme.labelMedium,
+                      prefixIconColor: colors.primary,
                     ),
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
+                    style: textTheme.bodyMedium,
                   ),
                 ),
 
@@ -135,12 +138,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: TextField(
                     controller: _passwordController,
                     obscureText: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock_outline),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      border: const OutlineInputBorder(),
+                      labelStyle: textTheme.labelMedium,
+                      prefixIconColor: colors.primary,
                     ),
                     autofillHints: const [AutofillHints.password],
+                    style: textTheme.bodyMedium,
                   ),
                 ),
 
@@ -153,11 +159,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       _speak("Forgot password");
                       // TODO: Implementar recuperación de contraseña
                     },
-                    child: const Text(
+                    child: Text(
                       'Forgot password?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.teal,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colors.secondary,
                         decoration: TextDecoration.underline,
                       ),
                     ),
@@ -190,12 +195,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 Row(
                   children: [
-                    const Expanded(child: Divider()),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text("or"),
+                    Expanded(
+                      child: Divider(color: colors.onBackground.withOpacity(0.3)),
                     ),
-                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        "or",
+                        style: textTheme.bodyMedium,
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(color: colors.onBackground.withOpacity(0.3)),
+                    ),
                   ],
                 ),
 
@@ -211,11 +223,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
-                    side: const BorderSide(color: Colors.teal),
+                    side: BorderSide(color: colors.primary),
+                    foregroundColor: colors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Register',
-                    style: TextStyle(color: Colors.teal),
+                    style: TextStyle(color: colors.primary),
                   ),
                 ),
 

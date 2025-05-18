@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +10,8 @@ import '../main.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../models/medication.dart';
+import 'package:photo_view/photo_view.dart';
+import '../services/tts_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Medication> medications = [];
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  Map<String, List<String>> takenMedicationsByDate = {};
+
 
 
 
@@ -30,7 +36,118 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _selectedDay = _focusedDay;
     _loadMedications();
+    _loadTakenMedications();
   }
+
+  Future<void> _speakMedications() async {
+    if (medications.isEmpty) {
+      await TtsService().speak('You have no medications scheduled for today.');
+      return;
+    }
+
+    final medsToday = _eventsForDay(_selectedDay!);
+
+    if (medsToday.isEmpty) {
+      await TtsService().speak('You have no medications scheduled for today.');
+      return;
+    }
+
+    String speechText = 'Today, you have ${medsToday.length} medications to take. ';
+
+    for (var med in medsToday) {
+      final timeFormatted = TimeOfDay.fromDateTime(med.time).format(context);
+      speechText += 'Take ${med.dose} of ${med.name} at $timeFormatted. ';
+    }
+
+    await TtsService().speak(speechText);
+  }
+
+  Future<void> _loadTakenMedications() async {
+    takenMedicationsByDate = await StorageService().loadTakenMedicationsByDate();
+    setState(() {});
+  }
+
+  bool _isTaken(String medId) {
+    final dateKey = _selectedDay!.toIso8601String().split('T')[0];
+    final takenList = takenMedicationsByDate[dateKey] ?? [];
+    return takenList.contains(medId);
+  }
+  Future<void> _toggleTaken(String medId) async {
+    final dateKey = _selectedDay!.toIso8601String().split('T')[0];
+    final takenList = takenMedicationsByDate[dateKey] ?? [];
+
+    setState(() {
+      if (takenList.contains(medId)) {
+        takenList.remove(medId);
+      } else {
+        takenList.add(medId);
+      }
+      takenMedicationsByDate[dateKey] = takenList;
+    });
+
+    await StorageService().saveTakenMedicationsByDate(takenMedicationsByDate);
+
+    // Actualizar historial
+    final history = await StorageService().loadMedicationHistory();
+
+    // Buscar la medicación en el historial
+    final medHistoryIndex = history.indexWhere((h) => h['medId'] == medId);
+    if (medHistoryIndex != -1) {
+      final medHistory = history[medHistoryIndex];
+      final takenDays = Map<String, dynamic>.from(medHistory['takenDays'] ?? {});
+
+      // Actualizar el día actual
+      takenDays[dateKey] = takenList.contains(medId);
+
+      medHistory['takenDays'] = takenDays;
+      history[medHistoryIndex] = medHistory;
+    } else {
+      // Si no existe, crear una nueva entrada (opcional)
+      // Para esto necesitarías info de la medicación (nombre, dosis, fechas)
+    }
+
+    await StorageService().saveMedicationHistory(history);
+  }
+  Color _getMedicationStatusColor(Medication med) {
+    final now = DateTime.now();
+    final dateKey = _selectedDay!.toIso8601String().split('T')[0];
+    final takenList = takenMedicationsByDate[dateKey] ?? [];
+    final isTaken = takenList.contains(med.id);
+
+    if (isTaken) {
+      return Colors.green; // Verde: tomado
+    } else {
+      // Compara la hora programada con la hora actual solo si la fecha es hoy
+      final medDate = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+      final today = DateTime(now.year, now.month, now.day);
+
+      if (medDate.isBefore(today)) {
+        // Fecha pasada y no tomada → rojo urgente
+        return Colors.red;
+      } else if (medDate.isAfter(today)) {
+        // Fecha futura → amarillo pendiente
+        return Colors.yellow[700]!;
+      } else {
+        // Fecha es hoy, compara horas
+        final medDateTime = DateTime(
+          _selectedDay!.year,
+          _selectedDay!.month,
+          _selectedDay!.day,
+          med.time.hour,
+          med.time.minute,
+        );
+
+        if (now.isAfter(medDateTime)) {
+          // Hora pasada y no tomada → rojo urgente
+          return Colors.red;
+        } else {
+          // Hora futura → amarillo pendiente
+          return Colors.yellow[700]!;
+        }
+      }
+    }
+  }
+
 
 
   Future<void> _scheduleNotificationInOneMinute() async {
@@ -67,17 +184,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadMedications() async {
     medications = await StorageService().loadMedications();
+    takenMedications = medications.where((m) => m.taken).map((m) => m.id).toSet();
     setState(() {});
+
+    // Llama a TTS para leer las medicaciones
+    await _speakMedications();
   }
-  void _toggleTaken(String medId) {
-    setState(() {
-      if (takenMedications.contains(medId)) {
-        takenMedications.remove(medId);
-      } else {
-        takenMedications.add(medId);
-      }
-    });
-  }
+
 
   List<Medication> _eventsForDay(DateTime day) {
     return medications.where((m) {
@@ -248,8 +361,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
     floatingActionButton: FloatingActionButton.extended(
-    backgroundColor: Colors.teal.shade600,
-    foregroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.primary,
+    foregroundColor: Theme.of(context).colorScheme.onPrimary,
     onPressed: _navigateToAdd,
     label: const Text('Add Medication'),
     icon: const Icon(Icons.add),
@@ -260,6 +373,81 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMedCard(Medication med, Color accent) {
     final time = TimeOfDay.fromDateTime(med.time).format(context);
+
+    final taken = _isTaken(med.id);
+
+
+    Widget avatar;
+
+    if (med.imagePath != null && med.imagePath!.isNotEmpty) {
+      avatar = GestureDetector(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (context) {
+              final theme = Theme.of(context);
+              return Scaffold(
+                backgroundColor: theme.scaffoldBackgroundColor,
+                appBar: AppBar(
+                  backgroundColor: theme.appBarTheme.backgroundColor ?? theme.colorScheme.primary,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  title: Text(
+                    med.name,
+                    style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onPrimary),
+                  ),
+                  centerTitle: true,
+                ),
+                body: Center(
+                  child: Hero(
+                    tag: med.id,
+                    child: PhotoView(
+                      imageProvider: FileImage(File(med.imagePath!)),
+                      backgroundDecoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
+                      loadingBuilder: (context, event) => Center(
+                        child: CircularProgressIndicator(color: theme.colorScheme.primary),
+                      ),
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Icon(Icons.broken_image, size: 100, color: theme.colorScheme.onBackground.withOpacity(0.3)),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ));
+        },
+        child: Hero(
+          tag: med.id,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Image.file(
+              File(med.imagePath!),
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: const Icon(Icons.medication, color: Colors.white, size: 28),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    } else {
+      avatar = CircleAvatar(
+        radius: 28,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        child: const Icon(Icons.medication, color: Colors.white, size: 28),
+      );
+    }
+    final statusColor = _getMedicationStatusColor(med);
+
     return Card(
       color: Colors.white.withOpacity(0.9),
       shape: RoundedRectangleBorder(
@@ -272,12 +460,19 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.medication, color: Colors.white, size: 28),
-            ),
+            avatar,
             const SizedBox(width: 16),
+            // Indicador de estado
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black26),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${med.dose} • $time',
+                    '${med.dose} • ${TimeOfDay.fromDateTime(med.time).format(context)}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Colors.black87,
                     ),
@@ -308,15 +503,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            // Aquí el toggle para marcar como tomado
             Switch(
-              value: med.taken,
-              onChanged: (bool value) async {
-                setState(() {
-                  med.taken = value;
-                });
-                // Guarda el cambio en almacenamiento
-                await StorageService().saveMedications(medications);
+              value: taken,
+              onChanged: (value) async {
+                final message = taken
+                    ? 'Are you sure you want to mark the medication as not taken?'
+                    : 'Are you sure you have taken the medication?';
+
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirm'),
+                    content: Text(message),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('No'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Yes'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true) {
+                  await _toggleTaken(med.id);
+                }
               },
             ),
             IconButton(

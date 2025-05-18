@@ -8,6 +8,7 @@ class Medication {
   final DateTime endDate;
   final String? notes;
   bool taken;
+  final String? imagePath;
 
 
 
@@ -20,7 +21,10 @@ class Medication {
     required this.startDate,
     required this.endDate,
     this.notes,
-    this.taken = false
+    this.imagePath,
+    this.taken = false,
+
+
   });
 
   Map<String, dynamic> toMap() {
@@ -33,6 +37,9 @@ class Medication {
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'notes': notes,
+      'imagePath': imagePath,
+      'taken': taken,
+
     };
   }
 
@@ -59,6 +66,8 @@ class Medication {
       startDate: DateTime.parse(map['startDate'] as String),
       endDate: DateTime.parse(map['endDate'] as String),
       notes: map['notes'] as String?,
+      imagePath: map['imagePath'] as String?,
+      taken: map['taken'] as bool? ?? false,// Añadido
     );
   }
 
@@ -89,6 +98,8 @@ class Medication {
         startDate: DateTime.parse(map['startDate'] as String),
         endDate: DateTime.parse(map['endDate'] as String),
         notes: map['notes'] as String?,
+        imagePath: map['imagePath'] as String?,
+        taken: map['taken'] as bool? ?? false,// Añadido
       );
     } catch (_) {
       return null;
