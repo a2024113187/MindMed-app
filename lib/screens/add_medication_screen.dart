@@ -52,11 +52,43 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   }
 
   Future<void> _pickImage() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _getImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _getImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _getImage(ImageSource source) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 600);
+    final pickedFile = await picker.pickImage(source: source, maxWidth: 600);
     if (pickedFile == null) return;
 
-    // Copiar la imagen a un directorio local para persistencia
     final appDir = await getApplicationDocumentsDirectory();
     final fileName = path.basename(pickedFile.path);
     final savedImage = await File(pickedFile.path).copy('${appDir.path}/$fileName');

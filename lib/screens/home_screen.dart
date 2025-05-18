@@ -548,14 +548,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-    Widget _buildDrawer(User? user) {
+  Widget _buildDrawer(User? user) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: Text(user?.email ?? ''),
-            accountEmail: Text(user?.uid ?? ''),
+            accountName: Text(user?.displayName ?? user?.email ?? ''),
+            accountEmail: Text(user?.email ?? ''),
+            currentAccountPicture: user?.photoURL != null
+                ? CircleAvatar(
+              backgroundImage: NetworkImage(user!.photoURL!),
+            )
+                : CircleAvatar(
+              backgroundColor: Colors.grey.shade300,
+              child: const Icon(Icons.person, size: 40, color: Colors.white),
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.teal,
+            ),
           ),
           _drawerItem(Icons.add, 'Add Medication', '/add_medication'),
           _drawerItem(Icons.notification_important, 'Reminder Popup', '/reminder_popup'),
