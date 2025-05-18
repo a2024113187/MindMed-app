@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/storage_service.dart';
 import '../main.dart'; // Para GlobalBackground
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -20,12 +22,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final loaded = await StorageService().loadMedicationHistory();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Manejar usuario no autenticado, por ejemplo:
+      setState(() {
+        history = [];
+        isLoading = false;
+      });
+      return;
+    }
+    final uid = user.uid;
+
+    final loaded = await StorageService().loadMedicationHistory(uid);
     setState(() {
       history = loaded;
       isLoading = false;
     });
   }
+
 
   @override
   Widget build(BuildContext context) {

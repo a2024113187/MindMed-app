@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mindmeds/main.dart';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -38,7 +40,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final arg = ModalRoute.of(context)?.settings.arguments;
+    final arg = ModalRoute
+        .of(context)
+        ?.settings
+        .arguments;
     if (arg is DateTime) _baseDate = arg;
   }
 
@@ -52,14 +57,47 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   }
 
   Future<void> _pickImage() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _getImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _getImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _getImage(ImageSource source) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 600);
+    final pickedFile = await picker.pickImage(source: source, maxWidth: 600);
     if (pickedFile == null) return;
 
-    // Copiar la imagen a un directorio local para persistencia
     final appDir = await getApplicationDocumentsDirectory();
     final fileName = path.basename(pickedFile.path);
-    final savedImage = await File(pickedFile.path).copy('${appDir.path}/$fileName');
+    final savedImage = await File(pickedFile.path).copy(
+        '${appDir.path}/$fileName');
 
     setState(() {
       _imageFile = savedImage;
@@ -118,12 +156,20 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       );
       return;
     }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not authenticated')),
+      );
+      return;
+    }
+    final uid = user.uid;
 
     try {
       final storage = StorageService();
-      final list = await storage.loadMedications();
+      final list = await storage.loadMedications(uid);
       final idBase = Uuid().v4();
-      final history = await storage.loadMedicationHistory();
+      final history = await storage.loadMedicationHistory(uid);
 
       final notificationService = NotificationService();
 
@@ -134,11 +180,11 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         final medId = '$idBase-$i';
 
         Map<String, bool> takenDays = {};
-        for (DateTime date = _startDate; !date.isAfter(_endDate); date = date.add(const Duration(days: 1))) {
+        for (DateTime date = _startDate; !date.isAfter(_endDate);
+        date = date.add(const Duration(days: 1))) {
           final key = date.toIso8601String().split('T')[0];
           takenDays[key] = false;
         }
-
 
 
         final med = Medication(
@@ -155,7 +201,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           ),
           startDate: _startDate,
           endDate: _endDate,
-          notes: _notesController.text.trim().isEmpty
+          notes: _notesController.text
+              .trim()
+              .isEmpty
               ? null
               : _notesController.text.trim(),
           imagePath: _imageFile?.path,
@@ -174,7 +222,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           'notes': _notesController.text.trim(),
         });
 
-        await storage.saveMedicationHistory(history);
+        await storage.saveMedicationHistory(history, uid);
 
 
         for (DateTime date = _startDate;
@@ -192,7 +240,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
           final notificationId = medId.hashCode ^ date.hashCode;
 
-          print('[AddMedicationScreen] Scheduling notification for medication "${med.name}" on $scheduledDate with id $notificationId');
+          print(
+              '[AddMedicationScreen] Scheduling notification for medication "${med
+                  .name}" on $scheduledDate with id $notificationId');
 
           await notificationService.scheduleNotification(
             id: notificationId,
@@ -200,7 +250,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             body: '${med.dose} at ${tod.format(context)}',
             scheduledDate: scheduledDate,
           );
-
         }
       }
       for (var i = 0; i < _times.length; i++) {
@@ -219,7 +268,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
           if (scheduledDateTime.isBefore(DateTime.now())) continue;
 
-          final alarmId = scheduledDateTime.millisecondsSinceEpoch.remainder(100000);
+          final alarmId = scheduledDateTime.millisecondsSinceEpoch.remainder(
+              100000);
 
           await AndroidAlarmManager.oneShotAt(
             scheduledDateTime,
@@ -232,11 +282,11 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
           print('Alarma programada para $scheduledDateTime con id $alarmId');
         }
-
       }
 
-      await storage.saveMedications(list);
-      print('[AddMedicationScreen] Medication saved and notifications scheduled.');
+      await storage.saveMedications(list, uid);
+      print(
+          '[AddMedicationScreen] Medication saved and notifications scheduled.');
       Navigator.pop(context, true);
     } catch (e) {
       print('[AddMedicationScreen] Error saving medication: $e');
@@ -248,210 +298,313 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return GlobalBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('Add Medication')),
+        appBar: AppBar(
+          title: const Text('Add Medication'),
+          backgroundColor: Colors.transparent,
+          foregroundColor: colorScheme.onBackground,
+          elevation: 0,
+        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Form(
-          key: _formKey,
-          child: Column(
-
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Sección: Información básica
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Medication Info', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Medication Name',
-                          prefixIcon: Icon(Icons.medication),
-                          border: OutlineInputBorder(),
-                          hintText: 'Enter medication name',
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty ? 'Enter name' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _doseController,
-                        decoration: const InputDecoration(
-                          labelText: 'Dose',
-                          prefixIcon: Icon(Icons.local_hospital),
-                          border: OutlineInputBorder(),
-                          hintText: 'e.g., 500 mg',
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty ? 'Enter dose' : null,
-                      ),
-                    ],
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Medication Info Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ),
-              ),
-
-
-              const SizedBox(height: 16),
-
-              // Sección: Frecuencia y horarios
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Frequency & Times', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        value: _times.length > 0 ? _times.length : null,
-                        decoration: const InputDecoration(
-                          labelText: 'Times per day',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: List.generate(10, (index) => index + 1)
-                            .map((e) => DropdownMenuItem(value: e, child: Text('$e')))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) _updateTimesList(val.toString());
-                        },
-                        validator: (v) => (v == null || v <= 0) ? 'Select frequency' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      ...List.generate(_times.length, (i) {
-                        final label = 'Time #${i + 1}';
-                        final subtitle = _times[i]?.format(context) ?? 'Not set';
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(label),
-                          subtitle: Text(subtitle),
-                          trailing: ElevatedButton(
-                            onPressed: () => _pickTime(i),
-                            child: const Text('Select'),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Medication Info', style: textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            labelText: 'Medication Name',
+                            prefixIcon: Icon(
+                                Icons.medication, color: colorScheme.primary),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            hintText: 'Enter medication name',
                           ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Sección: Fechas
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Date Range', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 12),
-                      ListTile(
-                        leading: const Icon(Icons.calendar_today),
-                        title: Text('Start Date: ${_startDate.toLocal().toString().split(' ')[0]}'),
-                        trailing: ElevatedButton(
-                          onPressed: () => _pickDate(isStart: true),
-                          child: const Text('Select'),
+                          validator: (v) =>
+                          v == null || v
+                              .trim()
+                              .isEmpty ? 'Enter name' : null,
+                          style: textTheme.bodyMedium,
                         ),
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.calendar_today),
-                        title: Text('End Date: ${_endDate.toLocal().toString().split(' ')[0]}'),
-                        trailing: ElevatedButton(
-                          onPressed: () => _pickDate(isStart: false),
-                          child: const Text('Select'),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _doseController,
+                          decoration: InputDecoration(
+                            labelText: 'Dose',
+                            prefixIcon: Icon(Icons.local_hospital,
+                                color: colorScheme.primary),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            hintText: 'e.g., 500 mg',
+                          ),
+                          validator: (v) =>
+                          v == null || v
+                              .trim()
+                              .isEmpty ? 'Enter dose' : null,
+                          style: textTheme.bodyMedium,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Sección: Imagen
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Medication Photo (optional)', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Center(
-                        child: _imageFile == null
-                            ? const Text('No image selected.')
-                            : ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(_imageFile!, height: 150),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: ElevatedButton.icon(
-                          onPressed: _pickImage,
-                          icon: const Icon(Icons.photo_library),
-                          label: const Text('Select Image'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Sección: Notas
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextFormField(
-                    controller: _notesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (optional)',
-                      border: OutlineInputBorder(),
-                      hintText: 'Additional information',
+                      ],
                     ),
-                    maxLines: 3,
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-              // Botón Guardar
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saveMedication,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    backgroundColor: Colors.teal.shade600,
+                // Frequency & Times Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Text('Save Medication', style: TextStyle(fontSize: 18)),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Frequency & Times', style: textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<int>(
+                          value: _times.length > 0 ? _times.length : null,
+                          decoration: InputDecoration(
+                            labelText: 'Times per day',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          items: List.generate(10, (index) => index + 1)
+                              .map((e) =>
+                              DropdownMenuItem(
+                                value: e,
+                                child: Text('$e', style: textTheme.bodyMedium),
+                              ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) _updateTimesList(val.toString());
+                          },
+                          validator: (v) =>
+                          (v == null || v <= 0)
+                              ? 'Select frequency'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        ...List.generate(_times.length, (i) {
+                          final label = 'Time #${i + 1}';
+                          final subtitle = _times[i]?.format(context) ??
+                              'Not set';
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(label, style: textTheme.bodyMedium),
+                            subtitle: Text(
+                                subtitle, style: textTheme.bodySmall),
+                            trailing: ElevatedButton(
+                              onPressed: () => _pickTime(i),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: colorScheme.onPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Select'),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 16),
+
+                // Date Range Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Date Range', style: textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  foregroundColor: colorScheme
+                                      .onPrimaryContainer,
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.calendar_today_outlined),
+                                label: Text(
+                                  DateFormat('dd MMM yyyy').format(_startDate),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.bodyMedium,
+                                ),
+                                onPressed: () => _pickDate(isStart: true),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  foregroundColor: colorScheme
+                                      .onPrimaryContainer,
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.calendar_today_outlined),
+                                label: Text(
+                                  DateFormat('dd MMM yyyy').format(_endDate),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.bodyMedium,
+                                ),
+                                onPressed: () => _pickDate(isStart: false),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Medication Photo Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Medication Photo (optional)',
+                            style: textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: _imageFile == null
+                              ? Text(
+                              'No image selected.', style: textTheme.bodyMedium)
+                              : ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(_imageFile!, height: 150),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: ElevatedButton.icon(
+                            onPressed: _pickImage,
+                            icon: Icon(Icons.photo_library,
+                                color: colorScheme.onPrimary),
+                            label: Text('Select Image',
+                                style: textTheme.labelLarge?.copyWith(
+                                    color: colorScheme.onPrimary)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 24),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Notes Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextFormField(
+                      controller: _notesController,
+                      decoration: InputDecoration(
+                        labelText: 'Notes (optional)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        hintText: 'Additional information',
+                      ),
+                      maxLines: 3,
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Save Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saveMedication,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                    ),
+                    child: Text('Save Medication',
+                        style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onPrimary)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 }

@@ -225,6 +225,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.22.0"
+  firebase_storage:
+    dependency: "direct main"
+    description:
+      name: firebase_storage
+      sha256: b66435730252985c49aabe83e0490bcfab2e7b3f2192bf421ca596fa490de14a
+      url: "https://pub.dev"
+    source: hosted
+    version: "12.4.5"
+  firebase_storage_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_storage_platform_interface
+      sha256: "08d32cae58200c34f504098d106952213f2e4c32db111ae7757a86887428ab81"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.2.5"
+  firebase_storage_web:
+    dependency: transitive
+    description:
+      name: firebase_storage_web
+      sha256: d6aee6867f8c369a88484367a8b1f0f6d0f022b4ff2622b51e32dfeef839f9d4
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.10.12"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -385,13 +409,13 @@ packages:
     source: hosted
     version: "0.2.1+1"
   intl:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: intl
-      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
+      sha256: "3bc132a9dbce73a7e4a21a17d06e1878839ffbf975568bc875c60537824b0c4d"
       url: "https://pub.dev"
     source: hosted
-    version: "0.20.2"
+    version: "0.18.1"
   leak_tracker:
     dependency: transitive
     description:
@@ -721,10 +745,10 @@ packages:
     dependency: "direct main"
     description:
       name: table_calendar
-      sha256: "0c0c6219878b363a2d5f40c7afb159d845f253d061dc3c822aa0d5fe0f721982"
+      sha256: "1e3521a3e6d3fc7f645a58b135ab663d458ab12504f1ea7f9b4b81d47086c478"
       url: "https://pub.dev"
     source: hosted
-    version: "3.2.0"
+    version: "3.0.9"
   term_glyph:
     dependency: transitive
     description:

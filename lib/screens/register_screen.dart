@@ -1,6 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:mindmeds/services/storage_service.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+
+
 
 
 class GlobalBackground extends StatelessWidget {
@@ -16,8 +25,8 @@ class GlobalBackground extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             Colors.white,
-            Color(0xFF90CAF9), // azul suave
-            Color(0xFFFFC0CB), // rosa claro
+            Color(0xFF90CAF9),
+            Color(0xFFFFC0CB),
           ],
           stops: [0.0, 0.5, 1.0],
         ),
@@ -41,8 +50,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _userNameController = TextEditingController();
   final _aboutMeController = TextEditingController();
   DateTime? _birthDate;
-
   bool _isLoading = false;
+
+  File? _pickedImage;
+
+  final ImagePicker _picker = ImagePicker();
 
   Future<void> _showErrorDialog(String message) async {
     await showDialog(
@@ -61,87 +73,130 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
-    final firstDate = DateTime(1900);
-    final lastDate = now;
-
     final picked = await showDatePicker(
       context: context,
-      initialDate: _birthDate ?? DateTime(now.year - 18, now.month, now.day),
-      firstDate: firstDate,
-      lastDate: lastDate,
+      initialDate: _birthDate ?? DateTime(now.year - 18),
+      firstDate: DateTime(1900),
+      lastDate: now,
     );
-
     if (picked != null) {
-      setState(() {
-        _birthDate = picked;
-      });
+      setState(() => _birthDate = picked);
     }
   }
 
+  Future<void> _pickImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take a Photo'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source != null) {
+      try {
+        final pickedFile = await _picker.pickImage(
+          source: source,
+          maxWidth: 600,
+          maxHeight: 600,
+          imageQuality: 85,
+        );
+        if (pickedFile != null) {
+          setState(() {
+            _pickedImage = File(pickedFile.path);
+          });
+        }
+      } catch (e) {
+        await _showErrorDialog('Failed to pick image: $e');
+      }
+    }
+  }
+  Future<String> saveImageLocally(File imageFile) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final fileName = path.basename(imageFile.path);
+    final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+    return savedImage.path; // Retorna la ruta local
+  }
+
+
+
+
+
   Future<void> _register() async {
-    // Validaciones básicas (igual que antes)
     if (_userNameController.text.trim().isEmpty) {
-      await _showErrorDialog('Please enter a User Name');
-      return;
+      return _showErrorDialog('Please enter a User Name');
     }
     if (_birthDate == null) {
-      await _showErrorDialog('Please select your Date of Birth');
-      return;
+      return _showErrorDialog('Please select your Date of Birth');
     }
     if (_aboutMeController.text.trim().isEmpty) {
-      await _showErrorDialog('Please enter information about yourself');
-      return;
+      return _showErrorDialog('Please enter information about yourself');
     }
     if (_emailController.text.trim().isEmpty) {
-      await _showErrorDialog('Please enter your Email');
-      return;
+      return _showErrorDialog('Please enter your Email');
     }
-    if (_passwordController.text.isEmpty) {
-      await _showErrorDialog('Please enter a Password');
-      return;
-    }
-    if (_confirmController.text.isEmpty) {
-      await _showErrorDialog('Please confirm your Password');
-      return;
+    if (_passwordController.text.isEmpty ||
+        _confirmController.text.isEmpty) {
+      return _showErrorDialog('Please enter and confirm your Password');
     }
     if (_passwordController.text != _confirmController.text) {
-      await _showErrorDialog('Passwords do not match');
-      return;
+      return _showErrorDialog('Passwords do not match');
+    }
+    if (_pickedImage == null) {
+      return _showErrorDialog('Please select a profile photo');
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Crear usuario en Firebase Auth
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      User? user = userCredential.user;
+      final user = userCredential.user;
       if (user != null) {
-        // Guardar datos adicionales en Firestore
+        // Upload image and get URL
+        final localImagePath = await saveImageLocally(_pickedImage!);
+        await StorageService().saveUserProfileImagePath(user.uid, localImagePath);
+
+        if (localImagePath== null) {
+          // Upload failed, stop registration
+          setState(() => _isLoading = false);
+          return;
+        }
+
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'userName': _userNameController.text.trim(),
           'birthDate': _birthDate!.toIso8601String(),
           'aboutMe': _aboutMeController.text.trim(),
           'email': user.email,
+          'photoUrl': localImagePath,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
 
-      if (mounted) Navigator.pop(context); // Regresa a login
+      if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
-      await _showErrorDialog(e.message ?? 'An unknown error occurred');
+      await _showErrorDialog(e.message ?? 'Registration failed');
     } catch (e) {
-      await _showErrorDialog('Error saving user data: $e');
+      await _showErrorDialog('Error: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -159,150 +214,169 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-
-    String birthDateText =
-    _birthDate == null ? 'Select Date of Birth' : '${_birthDate!.toLocal()}'.split(' ')[0];
+    final birthDateText = _birthDate == null
+        ? 'Select your birth date'
+        : '${_birthDate!.toLocal()}'.split(' ')[0];
 
     return Scaffold(
-      // Elimina backgroundColor transparente para que tome el fondo del tema
-      // backgroundColor: Colors.transparent,
-
-      // Si quieres un fondo con gradiente igual que en main.dart, envuelve el body en GlobalBackground:
       body: GlobalBackground(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/icons/logo.webp',
-                  height: 120,
-                  fit: BoxFit.contain,
-                ),
-
-                const SizedBox(height: 40),
-
-                Text(
-                  'Register',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: colors.primary,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // USER NAME
-                TextField(
-                  controller: _userNameController,
-                  decoration: InputDecoration(
-                    labelText: 'User Name',
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: const OutlineInputBorder(),
-                  ),
-                  textInputAction: TextInputAction.next,
-                ),
-
-                const SizedBox(height: 16),
-
-                // DATE OF BIRTH (picker)
-                InkWell(
-                  onTap: _pickBirthDate,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Date of Birth',
-                      prefixIcon: const Icon(Icons.calendar_today_outlined),
-                      border: const OutlineInputBorder(),
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+              elevation: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/icons/logo.webp',
+                      height: 100,
                     ),
-                    child: Text(
-                      birthDateText,
-                      style: TextStyle(
-                        color:
-                        _birthDate == null ? Colors.grey.shade600 : Colors.black,
-                        fontSize: 16,
+                    const SizedBox(height: 16),
+                    Text(
+                      'Create Account',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colors.primary,
                       ),
                     ),
-                  ),
-                ),
+                    const SizedBox(height: 24),
 
-                const SizedBox(height: 16),
-
-                // ABOUT ME (multiline)
-                TextField(
-                  controller: _aboutMeController,
-                  decoration: InputDecoration(
-                    labelText: 'About Me',
-                    prefixIcon: const Icon(Icons.info_outline),
-                    border: const OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  textInputAction: TextInputAction.newline,
-                ),
-
-                const SizedBox(height: 16),
-
-                // EMAIL
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: const OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  textInputAction: TextInputAction.next,
-                ),
-
-                const SizedBox(height: 16),
-
-                // PASSWORD
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    border: const OutlineInputBorder(),
-                  ),
-                  autofillHints: const [AutofillHints.newPassword],
-                  textInputAction: TextInputAction.next,
-                ),
-
-                const SizedBox(height: 16),
-
-                // CONFIRM PASSWORD
-                TextField(
-                  controller: _confirmController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    border: const OutlineInputBorder(),
-                  ),
-                  autofillHints: const [AutofillHints.newPassword],
-                  textInputAction: TextInputAction.done,
-                ),
-
-                const SizedBox(height: 32),
-
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _register,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                    backgroundColor: colors.primary,
-                    foregroundColor: colors.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    // Profile photo picker
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage:
+                        _pickedImage != null ? FileImage(_pickedImage!) : null,
+                        child: _pickedImage == null
+                            ? const Icon(
+                          Icons.camera_alt,
+                          size: 50,
+                          color: Colors.white70,
+                        )
+                            : null,
+                      ),
                     ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Register'),
+                    const SizedBox(height: 16),
+
+                    // Username
+                    TextField(
+                      controller: _userNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: Icon(Icons.person),
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Birthdate
+                    InkWell(
+                      onTap: _pickBirthDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Birth Date',
+                          prefixIcon: Icon(Icons.cake),
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          birthDateText,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: _birthDate == null
+                                ? Colors.grey
+                                : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // About me
+                    TextField(
+                      controller: _aboutMeController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'About Me',
+                        prefixIcon: Icon(Icons.info_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.newline,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Email
+                    TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email),
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Password
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock),
+                        border: OutlineInputBorder(),
+                      ),
+                      autofillHints: const [AutofillHints.newPassword],
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Confirm Password
+                    TextField(
+                      controller: _confirmController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.done,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _register,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.primary,
+                          foregroundColor: colors.onPrimary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                            color: Colors.white)
+                            : const Text('Register'),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

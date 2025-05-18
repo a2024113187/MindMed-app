@@ -22,13 +22,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
 
-  Set<String> takenMedications = {}; // IDs de medicamentos marcados como tomados
+  Set<String> takenMedications = {
+  }; // IDs de medicamentos marcados como tomados
   List<Medication> medications = [];
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   Map<String, List<String>> takenMedicationsByDate = {};
-
-
 
 
   @override
@@ -52,7 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    String speechText = 'Today, you have ${medsToday.length} medications to take. ';
+    String speechText = 'Today, you have ${medsToday
+        .length} medications to take. ';
 
     for (var med in medsToday) {
       final timeFormatted = TimeOfDay.fromDateTime(med.time).format(context);
@@ -62,8 +62,14 @@ class _HomeScreenState extends State<HomeScreen> {
     await TtsService().speak(speechText);
   }
 
+
   Future<void> _loadTakenMedications() async {
-    takenMedicationsByDate = await StorageService().loadTakenMedicationsByDate();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+
+    takenMedicationsByDate =
+    await StorageService().loadTakenMedicationsByDate(uid);
     setState(() {});
   }
 
@@ -72,9 +78,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final takenList = takenMedicationsByDate[dateKey] ?? [];
     return takenList.contains(medId);
   }
+
   Future<void> _toggleTaken(String medId) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+    final uid = user.uid;
+
     final dateKey = _selectedDay!.toIso8601String().split('T')[0];
     final takenList = takenMedicationsByDate[dateKey] ?? [];
+    final history = await StorageService().loadMedicationHistory(uid);
 
     setState(() {
       if (takenList.contains(medId)) {
@@ -85,16 +98,19 @@ class _HomeScreenState extends State<HomeScreen> {
       takenMedicationsByDate[dateKey] = takenList;
     });
 
-    await StorageService().saveTakenMedicationsByDate(takenMedicationsByDate);
+    await StorageService().saveTakenMedicationsByDate(
+        takenMedicationsByDate, uid);
 
     // Actualizar historial
-    final history = await StorageService().loadMedicationHistory();
+    await StorageService().saveTakenMedicationsByDate(
+        takenMedicationsByDate, uid);
 
     // Buscar la medicación en el historial
     final medHistoryIndex = history.indexWhere((h) => h['medId'] == medId);
     if (medHistoryIndex != -1) {
       final medHistory = history[medHistoryIndex];
-      final takenDays = Map<String, dynamic>.from(medHistory['takenDays'] ?? {});
+      final takenDays = Map<String, dynamic>.from(
+          medHistory['takenDays'] ?? {});
 
       // Actualizar el día actual
       takenDays[dateKey] = takenList.contains(medId);
@@ -106,8 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // Para esto necesitarías info de la medicación (nombre, dosis, fechas)
     }
 
-    await StorageService().saveMedicationHistory(history);
+    await StorageService().saveMedicationHistory(history, uid);
   }
+
   Color _getMedicationStatusColor(Medication med) {
     final now = DateTime.now();
     final dateKey = _selectedDay!.toIso8601String().split('T')[0];
@@ -118,7 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return Colors.green; // Verde: tomado
     } else {
       // Compara la hora programada con la hora actual solo si la fecha es hoy
-      final medDate = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+      final medDate = DateTime(
+          _selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
       final today = DateTime(now.year, now.month, now.day);
 
       if (medDate.isBefore(today)) {
@@ -147,7 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
-
 
 
   Future<void> _scheduleNotificationInOneMinute() async {
@@ -183,8 +200,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadMedications() async {
-    medications = await StorageService().loadMedications();
-    takenMedications = medications.where((m) => m.taken).map((m) => m.id).toSet();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Manejar usuario no autenticado
+      return;
+    }
+    final uid = user.uid;
+    medications = await StorageService().loadMedications(uid);
+    takenMedications =
+        medications.where((m) => m.taken).map((m) => m.id).toSet();
     setState(() {});
 
     // Llama a TTS para leer las medicaciones
@@ -194,7 +218,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Medication> _eventsForDay(DateTime day) {
     return medications.where((m) {
-      final start = DateTime(m.startDate.year, m.startDate.month, m.startDate.day);
+      final start = DateTime(
+          m.startDate.year, m.startDate.month, m.startDate.day);
       final end = DateTime(m.endDate.year, m.endDate.month, m.endDate.day);
       final current = DateTime(day.year, day.month, day.day);
       return current.isAtSameMomentAs(start) ||
@@ -234,21 +259,15 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        title: Text(
-          'MindMed',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: const Color(0xFF0D4F4F),
-          ),
+        title: Image.asset(
+          'assets/icons/logo.webp',
+          height: 40,
         ),
+
+
+        // Ajusta el tamaño según prefiera),
         iconTheme: const IconThemeData(color: Color(0xFF0D4F4F)),
         actions: [
-
-
-          IconButton(
-            icon: const Icon(Icons.timer_10),
-            tooltip: 'Notify in 10 seconds',
-            onPressed: _scheduleNotificationIn10Seconds,
-          ),
 
 
           TweenAnimationBuilder<double>(
@@ -258,19 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, value, child) {
               return Transform.scale(
                 scale: value,
-                child: IconButton(
-                  icon: Icon(
-                    Icons.notifications_active_rounded,
-                    color: Colors.tealAccent.shade700.withOpacity(0.9),
-                    size: 28,
-                  ),
-                  onPressed: () => NotificationService().showNotification(
-                    id: 1,
-                    title: 'Test Notification',
-                    body: 'This is a test notification',
-                    payload: 'TestPayload',
-                  ),
-                ),
+                child: child,
               );
             },
             onEnd: () {
@@ -281,93 +288,104 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: _buildDrawer(user),
-    body: GlobalBackground(
-    child: CustomScrollView(
-    slivers: [
+      body: GlobalBackground(
+        child: CustomScrollView(
+          slivers: [
 
 
-
-    // 1) Logo y calendario
-    SliverToBoxAdapter(
-    child: Padding(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-    children: [
-    Image.asset('assets/icons/logo.webp', height: 80),
-    const SizedBox(height: 16),
-
-    Card(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    elevation: 3,
-    child: Padding(
-    padding: const EdgeInsets.all(8),
-    child: TableCalendar(
-    firstDay: DateTime.now().subtract(const Duration(days: 365)),
-    lastDay: DateTime.now().add(const Duration(days: 365)),
-    focusedDay: _focusedDay,
-    selectedDayPredicate: (d) => isSameDay(d, _selectedDay),
-    calendarStyle: const CalendarStyle(
-    todayDecoration: BoxDecoration(color: Colors.teal, shape: BoxShape.circle),
-    selectedDecoration: BoxDecoration(color: Colors.tealAccent, shape: BoxShape.circle),
-    ),
-    onDaySelected: (sel, foc) {
-    setState(() {
-    _selectedDay = sel;
-    _focusedDay = foc;
-    });
-    },
-    eventLoader: _eventsForDay,
-    ),
-    ),
-    ),
-    const SizedBox(height: 12),
-    ],
-    ),
-    ),
-    ),
+            // 1) Logo y calendario
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
 
 
-    // 2) Si no hay eventos, mostramos mensaje (también deslizable):
-    if (_eventsForDay(_selectedDay!).isEmpty)
-    SliverFillRemaining(
-    hasScrollBody: false,
-    child: Center(
-    child: Text(
-    'No medications on this day.',
-    style: theme.textTheme.bodyMedium,
-    ),
-    ),
-    )
-    else
-    // 3) Lista de tarjetas como SliverList
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-                (context, index) {
-              final med = _eventsForDay(_selectedDay!)[index];
-              return _buildMedCard(med, accent);
-            },
-            childCount: _eventsForDay(_selectedDay!).length,
-          ),
+                    Card(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: TableCalendar(
+                          firstDay: DateTime.now().subtract(const Duration(
+                              days: 365)),
+                          lastDay: DateTime.now().add(const Duration(
+                              days: 365)),
+                          focusedDay: _focusedDay,
+                          selectedDayPredicate: (d) =>
+                              isSameDay(d, _selectedDay),
+                          calendarStyle: const CalendarStyle(
+                            todayDecoration: BoxDecoration(
+                                color: Colors.teal, shape: BoxShape.circle),
+                            selectedDecoration: BoxDecoration(
+                                color: Colors.tealAccent,
+                                shape: BoxShape.circle),
+                          ),
+                          onDaySelected: (sel, foc) {
+                            setState(() {
+                              _selectedDay = sel;
+                              _focusedDay = foc;
+                            });
+                          },
+                          eventLoader: _eventsForDay,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+
+
+            // 2) Si no hay eventos, mostramos mensaje (también deslizable):
+            if (_eventsForDay(_selectedDay!).isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Text(
+                    'No medications on this day.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              )
+            else
+            // 3) Lista de tarjetas como SliverList
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                      final med = _eventsForDay(_selectedDay!)[index];
+                      return _buildMedCard(med, accent);
+                    },
+                    childCount: _eventsForDay(_selectedDay!).length,
+                  ),
+                ),
+              ),
+
+            // 4) Un pequeño padding al final
+            SliverToBoxAdapter(child: SizedBox(height: 80)),
+          ],
         ),
       ),
 
-      // 4) Un pequeño padding al final
-      SliverToBoxAdapter(child: SizedBox(height: 80)),
-    ],
-    ),
-    ),
 
-
-    floatingActionButton: FloatingActionButton.extended(
-    backgroundColor: Theme.of(context).colorScheme.primary,
-    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-    onPressed: _navigateToAdd,
-    label: const Text('Add Medication'),
-    icon: const Icon(Icons.add),
-    elevation: 4,
-    ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Theme
+            .of(context)
+            .colorScheme
+            .primary,
+        foregroundColor: Theme
+            .of(context)
+            .colorScheme
+            .onPrimary,
+        onPressed: _navigateToAdd,
+        label: const Text('Add Medication'),
+        icon: const Icon(Icons.add),
+        elevation: 4,
+      ),
     );
   }
 
@@ -388,7 +406,8 @@ class _HomeScreenState extends State<HomeScreen> {
               return Scaffold(
                 backgroundColor: theme.scaffoldBackgroundColor,
                 appBar: AppBar(
-                  backgroundColor: theme.appBarTheme.backgroundColor ?? theme.colorScheme.primary,
+                  backgroundColor: theme.appBarTheme.backgroundColor ??
+                      theme.colorScheme.primary,
                   elevation: 0,
                   leading: IconButton(
                     icon: const Icon(Icons.close),
@@ -396,7 +415,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   title: Text(
                     med.name,
-                    style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onPrimary),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                        color: theme.colorScheme.onPrimary),
                   ),
                   centerTitle: true,
                 ),
@@ -405,13 +425,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     tag: med.id,
                     child: PhotoView(
                       imageProvider: FileImage(File(med.imagePath!)),
-                      backgroundDecoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
-                      loadingBuilder: (context, event) => Center(
-                        child: CircularProgressIndicator(color: theme.colorScheme.primary),
-                      ),
-                      errorBuilder: (context, error, stackTrace) => Center(
-                        child: Icon(Icons.broken_image, size: 100, color: theme.colorScheme.onBackground.withOpacity(0.3)),
-                      ),
+                      backgroundDecoration: BoxDecoration(color: theme
+                          .scaffoldBackgroundColor),
+                      loadingBuilder: (context, event) =>
+                          Center(
+                            child: CircularProgressIndicator(
+                                color: theme.colorScheme.primary),
+                          ),
+                      errorBuilder: (context, error, stackTrace) =>
+                          Center(
+                            child: Icon(Icons.broken_image, size: 100,
+                                color: theme.colorScheme.onBackground
+                                    .withOpacity(0.3)),
+                          ),
                     ),
                   ),
                 ),
@@ -431,8 +457,12 @@ class _HomeScreenState extends State<HomeScreen> {
               errorBuilder: (context, error, stackTrace) {
                 return CircleAvatar(
                   radius: 28,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: const Icon(Icons.medication, color: Colors.white, size: 28),
+                  backgroundColor: Theme
+                      .of(context)
+                      .colorScheme
+                      .primary,
+                  child: const Icon(
+                      Icons.medication, color: Colors.white, size: 28),
                 );
               },
             ),
@@ -442,7 +472,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       avatar = CircleAvatar(
         radius: 28,
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: Theme
+            .of(context)
+            .colorScheme
+            .primary,
         child: const Icon(Icons.medication, color: Colors.white, size: 28),
       );
     }
@@ -479,14 +512,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     med.name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    style: Theme
+                        .of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${med.dose} • ${TimeOfDay.fromDateTime(med.time).format(context)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    '${med.dose} • ${TimeOfDay.fromDateTime(med.time).format(
+                        context)}',
+                    style: Theme
+                        .of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(
                       color: Colors.black87,
                     ),
                   ),
@@ -494,7 +536,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 4),
                     Text(
                       med.notes!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      style: Theme
+                          .of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(
                         fontStyle: FontStyle.italic,
                         color: Colors.grey.shade700,
                       ),
@@ -512,20 +558,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 final confirmed = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Confirm'),
-                    content: Text(message),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('No'),
+                  builder: (context) =>
+                      AlertDialog(
+                        title: const Text('Confirm'),
+                        content: Text(message),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('No'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text('Yes'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Yes'),
-                      ),
-                    ],
-                  ),
                 );
 
                 if (confirmed == true) {
@@ -534,10 +581,14 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              icon: const Icon(
+                  Icons.delete_outline_rounded, color: Colors.redAccent),
               onPressed: () async {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user == null) return;
+                final uid = user.uid;
                 medications.remove(med);
-                await StorageService().saveMedications(medications);
+                await StorageService().saveMedications(medications, uid);
                 setState(() {});
               },
             ),
@@ -548,32 +599,84 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-    Widget _buildDrawer(User? user) {
+  Widget _buildDrawer(User? user) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          UserAccountsDrawerHeader(
-            accountName: Text(user?.email ?? ''),
-            accountEmail: Text(user?.uid ?? ''),
-          ),
-          _drawerItem(Icons.add, 'Add Medication', '/add_medication'),
-          _drawerItem(Icons.notification_important, 'Reminder Popup', '/reminder_popup'),
-          _drawerItem(Icons.history, 'History', '/history'),
-          _drawerItem(Icons.person, 'Profile', '/profile'),
-          _drawerItem(Icons.accessibility, 'Accessibility', '/accessibility'),
-        ],
+      child: FutureBuilder<String?>(
+        future: user != null ? StorageService().getUserProfileImagePath(
+            user.uid) : Future.value(null),
+        builder: (context, snapshot) {
+          String? imagePath = snapshot.data;
+          bool hasImage = false;
+
+          if (imagePath != null) {
+            final file = File(imagePath);
+            hasImage = file.existsSync();
+          }
+
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              UserAccountsDrawerHeader(
+                accountName: Text(
+                  user?.displayName ?? user?.email ?? '',
+                  style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onPrimary),
+                ),
+                accountEmail: Text(
+                  user?.email ?? '',
+                  style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onPrimary),
+                ),
+                currentAccountPicture: hasImage
+                    ? CircleAvatar(
+                  backgroundImage: FileImage(File(imagePath!)),
+                )
+                    : (user?.photoURL != null
+                    ? CircleAvatar(
+                  backgroundImage: NetworkImage(user!.photoURL!),
+                )
+                    : CircleAvatar(
+                  backgroundColor: colorScheme.primary,
+                  child: Icon(
+                      Icons.person, size: 40, color: colorScheme.onPrimary),
+                )),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                ),
+              ),
+              _drawerItem(
+                  context, Icons.add, 'Add Medication', '/add_medication'),
+              _drawerItem(
+                  context, Icons.notification_important, 'Reminder Popup',
+                  '/reminder_popup'),
+              _drawerItem(context, Icons.history, 'History', '/history'),
+              _drawerItem(context, Icons.person, 'Profile', '/profile'),
+              _drawerItem(context, Icons.accessibility, 'Accessibility',
+                  '/accessibility'),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _drawerItem(IconData icon, String label, String route) {
+  Widget _drawerItem(BuildContext context, IconData icon, String label,
+      String route) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(label, style: textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onBackground)),
       onTap: () {
         Navigator.pop(context);
-        _navigate(route);
+        Navigator.pushNamed(context, route);
       },
     );
   }
