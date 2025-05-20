@@ -31,10 +31,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
+  int _takenMedicationsCount = 0;
+  List<String> _takenMedicationsNames = [];
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadTakenMedicationsCount();
+    _loadTakenMedicationsToday();
   }
 
   @override
@@ -245,6 +250,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }
+  Future<void> _loadTakenMedicationsCount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final takenByDate = await StorageService().loadTakenMedicationsByDate(user.uid);
+    int count = 0;
+    final todayKey = DateTime.now().toIso8601String().split('T')[0];
+
+    if (takenByDate.containsKey(todayKey)) {
+      count = (takenByDate[todayKey] as List).length;
+    }
+
+    setState(() {
+      _takenMedicationsCount = count;
+    });
+  }
+  Future<void> _loadTakenMedicationsToday() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final takenByDate = await StorageService().loadTakenMedicationsByDate(user.uid);
+    final medications = await StorageService().loadMedications(user.uid);
+
+    final todayKey = DateTime.now().toIso8601String().split('T')[0];
+
+    List<String> takenIds = [];
+    if (takenByDate.containsKey(todayKey)) {
+      takenIds = List<String>.from(takenByDate[todayKey]!);
+    }
+
+    // Obtener nombres de medicamentos tomados
+    final takenNames = medications
+        .where((med) => takenIds.contains(med.id))
+        .map((med) => med.name)
+        .toList();
+
+    setState(() {
+      _takenMedicationsNames = takenNames;
+    });
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -262,14 +309,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         '${_birthDate!.month.toString().padLeft(2, '0')}/'
         '${_birthDate!.year}';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: colors.primary,
-        actions: [
+    return GlobalBackground(
+        child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text(
+            'Profile',
+            style: TextStyle(
+              color: Color(0xFF001F3F), // Azul oscuro (equivale a Colors.blue[900])
+            ),
+          ),
+
+
+
+          backgroundColor: Colors.transparent,
+    elevation: 0,
+    centerTitle: true,
+    foregroundColor: colors.onBackground,
+    iconTheme: IconThemeData(color: colors.onBackground),
+    actions: [
           if (!_isEditing)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit,color: Color(0xFF001F3F)),
               tooltip: 'Edit Profile',
               onPressed: () {
                 setState(() {
@@ -280,13 +341,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           if (_isEditing) ...[
             IconButton(
-              icon: const Icon(Icons.check),
+              icon: const Icon(Icons.check,color: Color(0xFF001F3F)),
               tooltip: 'Save Changes',
               onPressed: isLoading ? null : _saveChanges,
               color: colors.onPrimary,
             ),
             IconButton(
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.close,color: Color(0xFF001F3F)),
               tooltip: 'Cancel',
               onPressed: () {
                 setState(() {
@@ -306,7 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout,color: Color(0xFF001F3F)),
             tooltip: 'Sign Out',
             onPressed: _signOut,
             color: colors.onPrimary,
@@ -327,19 +388,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           )
               : SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              color: Colors.white.withOpacity(0.9),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+    padding: const EdgeInsets.all(24),
+    child: SizedBox(
+    width: double.infinity,
+    child: ConstrainedBox(
+    constraints: BoxConstraints(
+    minHeight: MediaQuery.of(context).size.height - kToolbarHeight - MediaQuery.of(context).padding.top,
+    ),
+    child: Card(
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(16),
+    ),
+    elevation: 8,
+    color: Colors.white.withOpacity(0.9),
+    child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
                     GestureDetector(
                       onTap: _isEditing ? _pickImage : null,
                       child: CircleAvatar(
@@ -435,14 +501,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : _buildInfoRow(Icons.info_outline, 'About Me',
                         userData?['aboutMe'] ?? 'No information provided',
                         colors, textTheme, isMultiline: true),
-                  ],
+      const SizedBox(height: 16),
+
+      const SizedBox(height: 16),
+
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.medication, color: colors.secondary),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Medications taken today: $_takenMedicationsCount',
+                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (_takenMedicationsNames.isEmpty)
+                  Text(
+                    'None',
+                    style: textTheme.bodyMedium,
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _takenMedicationsNames.map((name) {
+                      return Chip(
+                        label: Text(name),
+                        backgroundColor: colors.primary.withOpacity(0.15),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+        ],
+      ),
+
+
+
                 ),
               ),
             ),
           ),
         ),
       ),
+    ),
+    ),
     );
+
+
+
+
+
+
   }
 
   Widget _buildInfoRow(IconData icon,

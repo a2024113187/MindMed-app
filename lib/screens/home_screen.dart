@@ -226,11 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result == true) _loadMedications();
   }
 
-  Future<void> _navigateToAdd() async {
+  Future<void> _navigateToAdd({Medication? medication}) async {
     final result = await Navigator.pushNamed(
       context,
       '/add_medication',
-      arguments: _selectedDay,
+      arguments: medication ?? _selectedDay,
     );
     if (result == true) _loadMedications();
   }
@@ -239,6 +239,19 @@ class _HomeScreenState extends State<HomeScreen> {
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacementNamed(context, '/login');
   }
+  String _getTimeSection(TimeOfDay time) {
+    final totalMinutes = time.hour * 60 + time.minute;
+    if (totalMinutes >= 5 * 60 && totalMinutes < 12 * 60) {
+      return 'Morning';
+    } else if (totalMinutes >= 12 * 60 && totalMinutes < 18 * 60) {
+      return 'Afternoon';
+    } else if (totalMinutes >= 18 * 60 && totalMinutes < 22 * 60) {
+      return 'Evening';
+    } else {
+      return 'Night';
+    }
+  }
+
 
   Widget _buildLegendDot(Color color) {
     return Container(
@@ -257,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primaryContainer.withOpacity(0.25);
+    final ttfService = TtsService();
 
     return Scaffold(
 
@@ -458,7 +472,8 @@ class _HomeScreenState extends State<HomeScreen> {
             .of(context)
             .colorScheme
             .onPrimary,
-        onPressed: _navigateToAdd,
+        onPressed: () => {_navigateToAdd(), ttfService.speak('Add Medication')
+        },
         label: const Text('Add Medication'),
         icon: const Icon(Icons.add),
         elevation: 4,
@@ -467,10 +482,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMedCard(Medication med, Color accent) {
-    final time = TimeOfDay.fromDateTime(med.time).format(context);
+    final timeOfDay = TimeOfDay.fromDateTime(med.time);
+    final timeSection = _getTimeSection(timeOfDay);
+    final timeFormatted = timeOfDay.format(context);
 
     final taken = _isTaken(med.id);
-
 
     Widget avatar;
 
@@ -599,8 +615,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${med.dose} • ${TimeOfDay.fromDateTime(med.time).format(
-                        context)}',
+                    '${med.dose} • $timeFormatted • $timeSection',
                     style: Theme
                         .of(context)
                         .textTheme
@@ -657,6 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
             ),
+
             IconButton(
               icon: const Icon(
                   Icons.delete_outline_rounded, color: Colors.redAccent),
@@ -669,6 +685,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {});
               },
             ),
+
           ],
         ),
       ),
@@ -697,43 +714,50 @@ class _HomeScreenState extends State<HomeScreen> {
           return ListView(
             padding: EdgeInsets.zero,
             children: [
-              UserAccountsDrawerHeader(
-                accountName: Text(
-                  user?.displayName ?? user?.email ?? '',
-                  style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onPrimary),
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+              Color(0xFFF3F6F9), // Gris claro
+          Color(0xFF4FC3F7), // Azul suave
+          Color(0xFFBA68C8), // Morado oscuro
+                    ],
+                  ),
                 ),
-                accountEmail: Text(
-                  user?.email ?? '',
-                  style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onPrimary),
-                ),
-                currentAccountPicture: hasImage
-                    ? CircleAvatar(
-                  backgroundImage: FileImage(File(imagePath!)),
-                )
-                    : (user?.photoURL != null
-                    ? CircleAvatar(
-                  backgroundImage: NetworkImage(user!.photoURL!),
-                )
-                    : CircleAvatar(
-                  backgroundColor: colorScheme.primary,
-                  child: Icon(
-                      Icons.person, size: 40, color: colorScheme.onPrimary),
-                )),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
+                child: UserAccountsDrawerHeader(
+                  margin: EdgeInsets.zero,
+                  decoration: const BoxDecoration(color: Colors.transparent), // Quitar fondo original
+                  accountName: Text(
+                    user?.displayName ?? user?.email ?? '',
+                    style: textTheme.titleMedium?.copyWith(color: Colors.white),
+                  ),
+                  accountEmail: Text(
+                    user?.email ?? '',
+                    style: textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                  ),
+                  currentAccountPicture: hasImage
+                      ? CircleAvatar(
+                    backgroundImage: FileImage(File(imagePath!)),
+                  )
+                      : (user?.photoURL != null
+                      ? CircleAvatar(
+                    backgroundImage: NetworkImage(user!.photoURL!),
+                  )
+                      : CircleAvatar(
+                    backgroundColor: Colors.white24,
+                    child: Icon(Icons.person, size: 40, color: Colors.white),
+                  )),
                 ),
               ),
-              _drawerItem(
-                  context, Icons.add, 'Add Medication', '/add_medication'),
-              _drawerItem(
-                  context, Icons.notification_important, 'Reminder Popup',
-                  '/reminder_popup'),
+              const SizedBox(height: 12),
+              _drawerItem(context, Icons.add, 'Add Medication', '/add_medication'),
+              _drawerItem(context, Icons.phone, 'Emergency Contacts', '/reminder_popup'),
               _drawerItem(context, Icons.history, 'History', '/history'),
               _drawerItem(context, Icons.person, 'Profile', '/profile'),
-              _drawerItem(context, Icons.accessibility, 'Accessibility',
-                  '/accessibility'),
+              _drawerItem(context, Icons.accessibility, 'Accessibility', '/accessibility'),
+              const Divider(thickness: 1, indent: 16, endIndent: 16),
             ],
           );
         },

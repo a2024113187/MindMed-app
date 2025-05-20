@@ -183,7 +183,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('History'),
+          title: const Text(
+            'History ',
+            style: TextStyle(
+              color: Color(0xFF001F3F), // Azul oscuro (equivale a Colors.blue[900])
+            ),
+          ),
+
           centerTitle: true,
           backgroundColor: Colors.transparent,
           foregroundColor: colorScheme.primary,

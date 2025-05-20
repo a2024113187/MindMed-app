@@ -8,6 +8,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:mindmeds/services/storage_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:mindmeds/services/tts_service.dart';
+
+
 
 
 
@@ -15,6 +18,7 @@ import 'package:path_provider/path_provider.dart';
 class GlobalBackground extends StatelessWidget {
   final Widget child;
   const GlobalBackground({super.key, required this.child});
+
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +43,8 @@ class GlobalBackground extends StatelessWidget {
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
+
+
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -51,12 +57,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _aboutMeController = TextEditingController();
   DateTime? _birthDate;
   bool _isLoading = false;
+  final TtsService _ttsService = TtsService();
+
+
 
   File? _pickedImage;
 
   final ImagePicker _picker = ImagePicker();
+  final FocusNode _userNameFocusNode = FocusNode();
+
+
+  @override
+  void initState() {
+    super.initState();
+    _ttsService.init();
+
+    _userNameFocusNode.addListener(() {
+      if (_userNameFocusNode.hasFocus) {
+        _ttsService.speak('Enter your username');
+      }
+    }
+
+    );
+  }
+
+
 
   Future<void> _showErrorDialog(String message) async {
+    await _ttsService.speak(message);
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -78,6 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialDate: _birthDate ?? DateTime(now.year - 18),
       firstDate: DateTime(1900),
       lastDate: now,
+
     );
     if (picked != null) {
       setState(() => _birthDate = picked);
@@ -87,18 +116,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _pickImage() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            Focus(
+              onFocusChange: (hasFocus) {
+                if (hasFocus) {
+                  _ttsService.speak('Choose from Gallery');
+                }
+              },
+              child: ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take a Photo'),
-              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            Focus(
+              onFocusChange: (hasFocus) {
+                if (hasFocus) {
+                  _ttsService.speak('Take a Photo');
+                }
+              },
+              child: ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a Photo'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
             ),
           ],
         ),
@@ -136,25 +180,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (_userNameController.text.trim().isEmpty) {
+      await _ttsService.speak('Please enter a User Name');
       return _showErrorDialog('Please enter a User Name');
     }
     if (_birthDate == null) {
+      await _ttsService.speak('Please select your Date of Birth');
       return _showErrorDialog('Please select your Date of Birth');
     }
     if (_aboutMeController.text.trim().isEmpty) {
+      await _ttsService.speak('Please enter information about yourself');
       return _showErrorDialog('Please enter information about yourself');
     }
-    if (_emailController.text.trim().isEmpty) {
-      return _showErrorDialog('Please enter your Email');
+    if (!isValidEmail(_emailController.text.trim())) {
+      await _ttsService.speak('Please enter your valid Email');
+
+      return _showErrorDialog('Please enter a valid Email address');
     }
     if (_passwordController.text.isEmpty ||
         _confirmController.text.isEmpty) {
+      await _ttsService.speak('Please enter and confirm your Password');
       return _showErrorDialog('Please enter and confirm your Password');
     }
     if (_passwordController.text != _confirmController.text) {
+      await _ttsService.speak('Passwords do not match');
       return _showErrorDialog('Passwords do not match');
     }
 
+    await _ttsService.speak('Registering your account, please wait.');
 
     setState(() => _isLoading = true);
 
@@ -171,9 +223,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final localImagePath = await saveImageLocally(_pickedImage!);
         await StorageService().saveUserProfileImagePath(user.uid, localImagePath);
 
-        if (localImagePath== null) {
-          // Upload failed, stop registration
+        if (localImagePath == null) {
           setState(() => _isLoading = false);
+          await _ttsService.speak('Failed to upload profile image.');
           return;
         }
 
@@ -187,8 +239,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
 
+      await _ttsService.speak('Registration successful. Welcome!');
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      await _ttsService.speak('Registration failed');
       await _showErrorDialog(e.message ?? 'Registration failed');
     } catch (e) {
       await _showErrorDialog('Error: $e');
@@ -199,6 +253,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  bool isValidEmail(String email) {
+    final emailRegex = RegExp(
+        r"^[a-zA-Z0-9.a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+"
+        r"@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$"
+    );
+    return emailRegex.hasMatch(email);
+  }
+
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -206,6 +269,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _confirmController.dispose();
     _userNameController.dispose();
     _aboutMeController.dispose();
+    _userNameFocusNode.dispose();
+
+
     super.dispose();
   }
 
@@ -215,6 +281,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final birthDateText = _birthDate == null
         ? 'Select your birth date'
         : '${_birthDate!.toLocal()}'.split(' ')[0];
+    final _ttsService = TtsService();
+    final FocusNode _userNameFocusNode = FocusNode();
 
     return Scaffold(
       body: GlobalBackground(
@@ -238,6 +306,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
+
                       'Create Account',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
@@ -268,18 +337,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Username
                     TextField(
                       controller: _userNameController,
+                      focusNode: _userNameFocusNode,
+                      autofillHints: const [AutofillHints.username],
                       decoration: const InputDecoration(
                         labelText: 'Username',
                         prefixIcon: Icon(Icons.person),
                         border: OutlineInputBorder(),
                       ),
                       textInputAction: TextInputAction.next,
+                      onTap: () => _ttsService.speak('Username'),
                     ),
+
                     const SizedBox(height: 16),
 
                     // Birthdate
                     InkWell(
-                      onTap: _pickBirthDate,
+                      onTap: () async {
+                        await _pickBirthDate();
+                        await _ttsService.speak('Birth date selected');
+                      },
+
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Birth Date',
@@ -303,6 +380,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextField(
                       controller: _aboutMeController,
                       maxLines: 3,
+                      onTap: () => _ttsService.speak('About me'),
                       decoration: const InputDecoration(
                         labelText: 'About Me',
                         prefixIcon: Icon(Icons.info_outline),
@@ -317,6 +395,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
+                      onTap: () => _ttsService.speak('Email'),
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.email),
@@ -330,6 +409,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
+                      onTap: () => _ttsService.speak('Password'),
                       decoration: const InputDecoration(
                         labelText: 'Password',
                         prefixIcon: Icon(Icons.lock),
@@ -344,6 +424,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextField(
                       controller: _confirmController,
                       obscureText: true,
+                      onTap: () => _ttsService.speak('Confirm Password'),
                       decoration: const InputDecoration(
                         labelText: 'Confirm Password',
                         prefixIcon: Icon(Icons.lock_outline),
@@ -370,6 +451,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ? const CircularProgressIndicator(
                             color: Colors.white)
                             : const Text('Register'),
+
                       ),
                     ),
                   ],

@@ -72,9 +72,17 @@ class _AccessibilitySettingsScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accessibility Settings'),
-        backgroundColor: colors.primary,
-        foregroundColor: colors.onPrimary,
+        iconTheme: IconThemeData(color: Color(0xFF001F3F),),
+        title: const Text(
+          'Accessibility Settings',
+          style: TextStyle(
+            color: Color(0xFF001F3F), // Azul más claro
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: Colors.transparent, // Fondo transparente
+        elevation: 0, // Sin sombra
+        foregroundColor: Colors.transparent,
       ),
       body: GlobalBackground(
         child: ListView(
@@ -104,6 +112,7 @@ class _AccessibilitySettingsScreenState
               onChanged: (v) async {
                 setState(() => _enableTts = v);
                 await _saveBoolSetting('enable_tts', v);
+                TtsService().setEnabled(v);
               },
             ),
             if (_enableTts)

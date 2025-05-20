@@ -7,14 +7,24 @@ class TtsService {
 
   final FlutterTts _flutterTts = FlutterTts();
 
+  bool _enabled = true; // Por defecto activado
+
   Future<void> init() async {
-    await _flutterTts.setLanguage('en-US'); // Puedes cambiar idioma aquí
+    await _flutterTts.setLanguage('en-US');
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
   }
 
+  void setEnabled(bool enabled) {
+    _enabled = enabled;
+    if (!enabled) {
+      stop();
+    }
+  }
+
   Future<void> speak(String text) async {
+    if (!_enabled) return; // No hablar si está desactivado
     if (text.isNotEmpty) {
       await _flutterTts.stop();
       await _flutterTts.speak(text);
@@ -25,7 +35,6 @@ class TtsService {
     await _flutterTts.stop();
   }
 
-  // Agrega este método público para cambiar la velocidad
   Future<void> setSpeechRate(double rate) async {
     await _flutterTts.setSpeechRate(rate);
   }

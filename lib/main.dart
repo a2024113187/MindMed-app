@@ -66,6 +66,10 @@ Future<void> main() async {
   await NotificationService().init();
   await TtsService().init();
   await StorageService().init();
+  final enableTtsString = await StorageService().getString('enable_tts');
+  final enableTts = enableTtsString?.toLowerCase() == 'true' ?? true;
+  TtsService().setEnabled(enableTts);
+
 
   runApp(const MindMedsApp());
 }
@@ -86,7 +90,7 @@ class MindMedsApp extends StatelessWidget {
           useMaterial3: true,
           colorScheme: const ColorScheme(
             brightness: Brightness.light,
-            primary: Color(0xFF4FC3F7), // Azul cielo brillante
+            primary: Color(0xFF039BE5), // Azul cielo brillante
             onPrimary: Colors.white,
             secondary: Color(0xFFBA68C8), // Lavanda / púrpura suave
             onSecondary: Colors.white,
@@ -101,7 +105,7 @@ class MindMedsApp extends StatelessWidget {
           textTheme: GoogleFonts.ralewayTextTheme().copyWith(
             bodyLarge: const TextStyle(fontSize: 18, height: 1.6, color: Color(0xFF1A1A1A)),
             bodyMedium: const TextStyle(fontSize: 16, height: 1.5, color: Color(0xFF333333)),
-            titleLarge: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF4FC3F7)),
+            titleLarge: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF001F3F)),
             labelMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFFBA68C8)),
           ),
           inputDecorationTheme: InputDecorationTheme(
@@ -118,21 +122,22 @@ class MindMedsApp extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF4FC3F7), width: 2),
+              borderSide: const BorderSide(color: Color(0xFF001F3F), width: 2),
             ),
             labelStyle: TextStyle(
-              color: Color(0xFFBA68C8),
+              color: Color(0xFF001F3F),
+
               fontWeight: FontWeight.w500,
             ),
             hintStyle: TextStyle(
               color: Color(0xFF9E9E9E),
               fontSize: 14,
             ),
-            prefixIconColor: Color(0xFFBA68C8),
+            prefixIconColor:  Color(0xFF001F3F),
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4FC3F7),
+              backgroundColor: const Color(0xFF001F3F),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -143,8 +148,8 @@ class MindMedsApp extends StatelessWidget {
           ),
           outlinedButtonTheme: OutlinedButtonThemeData(
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF4FC3F7),
-              side: const BorderSide(color: Color(0xFF4FC3F7), width: 1.5),
+              foregroundColor: const Color(0xFF001F3F),
+              side: const BorderSide(color: Color(0xFF001F3F), width: 1.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -160,7 +165,7 @@ class MindMedsApp extends StatelessWidget {
         '/register': (c) => const RegisterScreen(),
         '/home': (c) => const HomeScreen(),
         '/add_medication': (c) => const AddMedicationScreen(),
-        '/reminder_popup': (c) => const ReminderPopupScreen(),
+        '/reminder_popup': (c) => const EmergencyContactsScreen(),
         '/history': (c) => const HistoryScreen(),
         '/profile': (c) => const ProfileScreen(),
         '/accessibility': (c) => const AccessibilitySettingsScreen(),

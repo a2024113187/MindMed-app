@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mindmeds/main.dart';
+import 'package:mindmeds/services/tts_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../services/notification_service.dart';
@@ -30,6 +31,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   final _doseController = TextEditingController();
   final _frequencyController = TextEditingController();
   final _notesController = TextEditingController();
+  final TtsService _ttsService = TtsService();
 
   DateTime _baseDate = DateTime.now();
   DateTime _startDate = DateTime.now();
@@ -56,6 +58,12 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _ttsService.init();
+  }
+
   Future<void> _pickImage() async {
     showModalBottomSheet(
       context: context,
@@ -72,6 +80,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 onTap: () async {
                   Navigator.pop(ctx);
                   await _getImage(ImageSource.camera);
+                  await _ttsService.speak('Photo taken');
                 },
               ),
               ListTile(
@@ -80,6 +89,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 onTap: () async {
                   Navigator.pop(ctx);
                   await _getImage(ImageSource.gallery);
+                  await _ttsService.speak('Photo selected');
                 },
               ),
             ],
@@ -153,6 +163,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     if (_times.isEmpty || _times.any((t) => t == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select all times')),
+
       );
       return;
     }
@@ -163,13 +174,15 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Information'),
         content: const Text('Are you sure the information is correct?'),
+
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () =>{ Navigator.of(ctx).pop(false),_ttsService.speak('Information not confirmed'),
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => {Navigator.of(ctx).pop(true), _ttsService.speak('Information confirmed')},
             child: const Text('Confirm'),
           ),
         ],
@@ -332,10 +345,25 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('Add Medication'),
+          title: const Text(
+            'Add medication',
+
+            style: TextStyle(
+              color: Color(0xFF001F3F), // Azul oscuro (equivale a Colors.blue[900])
+            ),
+          ),
           backgroundColor: Colors.transparent,
           foregroundColor: colorScheme.onBackground,
           elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.volume_up, color: Color(0xFF001F3F)),
+              onPressed: () {
+                _ttsService.speak('Add medication');
+              },
+              tooltip: 'Listen title',
+            ),
+          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -361,6 +389,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                           controller: _nameController,
                           decoration: InputDecoration(
                             labelText: 'Medication Name',
+
                             prefixIcon: Icon(
                                 Icons.medication, color: colorScheme.primary),
                             border: OutlineInputBorder(
@@ -375,6 +404,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                           style: textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 12),
+
                         TextFormField(
                           controller: _doseController,
                           decoration: InputDecoration(
