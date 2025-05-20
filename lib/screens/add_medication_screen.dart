@@ -156,6 +156,31 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       );
       return;
     }
+
+    // Mostrar diálogo de confirmación
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Information'),
+        content: const Text('Are you sure the information is correct?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      // Usuario canceló
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -295,6 +320,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

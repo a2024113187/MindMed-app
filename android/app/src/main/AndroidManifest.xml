@@ -14,7 +14,7 @@
 
     <application
         android:enableOnBackInvokedCallback="true"
-        android:label="mindmeds"
+        android:label="MindMed"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

@@ -154,9 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_passwordController.text != _confirmController.text) {
       return _showErrorDialog('Passwords do not match');
     }
-    if (_pickedImage == null) {
-      return _showErrorDialog('Please select a profile photo');
-    }
+
 
     setState(() => _isLoading = true);
 

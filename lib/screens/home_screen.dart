@@ -125,42 +125,35 @@ class _HomeScreenState extends State<HomeScreen> {
     await StorageService().saveMedicationHistory(history, uid);
   }
 
-  Color _getMedicationStatusColor(Medication med) {
+  Color _getMedicationStatusColor(Medication med, DateTime day) {
     final now = DateTime.now();
-    final dateKey = _selectedDay!.toIso8601String().split('T')[0];
+    final dateKey = day.toIso8601String().split('T')[0];
     final takenList = takenMedicationsByDate[dateKey] ?? [];
     final isTaken = takenList.contains(med.id);
 
     if (isTaken) {
       return Colors.green; // Verde: tomado
     } else {
-      // Compara la hora programada con la hora actual solo si la fecha es hoy
-      final medDate = DateTime(
-          _selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+      final medDate = DateTime(day.year, day.month, day.day);
       final today = DateTime(now.year, now.month, now.day);
 
       if (medDate.isBefore(today)) {
-        // Fecha pasada y no tomada → rojo urgente
-        return Colors.red;
+        return Colors.red; // Fecha pasada y no tomada → rojo urgente
       } else if (medDate.isAfter(today)) {
-        // Fecha futura → amarillo pendiente
-        return Colors.yellow[700]!;
+        return Colors.yellow[700]!; // Fecha futura → amarillo pendiente
       } else {
-        // Fecha es hoy, compara horas
         final medDateTime = DateTime(
-          _selectedDay!.year,
-          _selectedDay!.month,
-          _selectedDay!.day,
+          day.year,
+          day.month,
+          day.day,
           med.time.hour,
           med.time.minute,
         );
 
         if (now.isAfter(medDateTime)) {
-          // Hora pasada y no tomada → rojo urgente
-          return Colors.red;
+          return Colors.red; // Hora pasada y no tomada → rojo urgente
         } else {
-          // Hora futura → amarillo pendiente
-          return Colors.yellow[700]!;
+          return Colors.yellow[700]!; // Hora futura → amarillo pendiente
         }
       }
     }
@@ -247,6 +240,18 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Widget _buildLegendDot(Color color) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.black26),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -308,32 +313,104 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: TableCalendar(
-                          firstDay: DateTime.now().subtract(const Duration(
-                              days: 365)),
-                          lastDay: DateTime.now().add(const Duration(
-                              days: 365)),
+                          firstDay: DateTime.now().subtract(const Duration(days: 365)),
+                          lastDay: DateTime.now().add(const Duration(days: 365)),
                           focusedDay: _focusedDay,
-                          selectedDayPredicate: (d) =>
-                              isSameDay(d, _selectedDay),
+                          selectedDayPredicate: (d) => isSameDay(d, _selectedDay),
                           calendarStyle: const CalendarStyle(
                             todayDecoration: BoxDecoration(
-                                color: Colors.teal, shape: BoxShape.circle),
+                              color: Colors.teal,
+                              shape: BoxShape.circle,
+                            ),
                             selectedDecoration: BoxDecoration(
-                                color: Colors.tealAccent,
-                                shape: BoxShape.circle),
+                              color: Colors.tealAccent,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                          onDaySelected: (sel, foc) {
+                          onDaySelected: (selectedDay, focusedDay) {
                             setState(() {
-                              _selectedDay = sel;
-                              _focusedDay = foc;
+                              _selectedDay = selectedDay;
+                              _focusedDay = focusedDay;
                             });
                           },
                           eventLoader: _eventsForDay,
+                          calendarBuilders: CalendarBuilders(
+                            markerBuilder: (context, day, events) {
+                              if (events.isEmpty) {
+                                return const SizedBox();
+                              }
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: events.map((event) {
+                                  if (event is Medication) {
+                                    final color = _getMedicationStatusColor(event, day);
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: color,
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox();
+                                }).toList(),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
                   ],
+                ),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Card(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Medication Status Legend',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildLegendDot(Colors.green),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('Taken')),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            _buildLegendDot(Colors.yellow.shade700),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('Pending')),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            _buildLegendDot(Colors.red),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('Overdue')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -479,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.medication, color: Colors.white, size: 28),
       );
     }
-    final statusColor = _getMedicationStatusColor(med);
+    final statusColor = _getMedicationStatusColor(med, _selectedDay!);
 
     return Card(
       color: Colors.white.withOpacity(0.9),

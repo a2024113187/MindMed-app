@@ -24,4 +24,9 @@ class TtsService {
   Future<void> stop() async {
     await _flutterTts.stop();
   }
+
+  // Agrega este método público para cambiar la velocidad
+  Future<void> setSpeechRate(double rate) async {
+    await _flutterTts.setSpeechRate(rate);
+  }
 }
