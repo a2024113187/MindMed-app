@@ -226,11 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result == true) _loadMedications();
   }
 
-  Future<void> _navigateToAdd() async {
+  Future<void> _navigateToAdd({Medication? medication}) async {
     final result = await Navigator.pushNamed(
       context,
       '/add_medication',
-      arguments: _selectedDay,
+      arguments: medication ?? _selectedDay,
     );
     if (result == true) _loadMedications();
   }
@@ -239,6 +239,19 @@ class _HomeScreenState extends State<HomeScreen> {
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacementNamed(context, '/login');
   }
+  String _getTimeSection(TimeOfDay time) {
+    final totalMinutes = time.hour * 60 + time.minute;
+    if (totalMinutes >= 5 * 60 && totalMinutes < 12 * 60) {
+      return 'Morning';
+    } else if (totalMinutes >= 12 * 60 && totalMinutes < 18 * 60) {
+      return 'Afternoon';
+    } else if (totalMinutes >= 18 * 60 && totalMinutes < 22 * 60) {
+      return 'Evening';
+    } else {
+      return 'Night';
+    }
+  }
+
 
   Widget _buildLegendDot(Color color) {
     return Container(
@@ -467,10 +480,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMedCard(Medication med, Color accent) {
-    final time = TimeOfDay.fromDateTime(med.time).format(context);
+    final timeOfDay = TimeOfDay.fromDateTime(med.time);
+    final timeSection = _getTimeSection(timeOfDay);
+    final timeFormatted = timeOfDay.format(context);
 
     final taken = _isTaken(med.id);
-
 
     Widget avatar;
 
@@ -599,8 +613,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${med.dose} • ${TimeOfDay.fromDateTime(med.time).format(
-                        context)}',
+                    '${med.dose} • $timeFormatted • $timeSection',
                     style: Theme
                         .of(context)
                         .textTheme
@@ -657,6 +670,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
             ),
+
             IconButton(
               icon: const Icon(
                   Icons.delete_outline_rounded, color: Colors.redAccent),
@@ -669,6 +683,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {});
               },
             ),
+
           ],
         ),
       ),
@@ -728,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _drawerItem(
                   context, Icons.add, 'Add Medication', '/add_medication'),
               _drawerItem(
-                  context, Icons.notification_important, 'Reminder Popup',
+                  context, Icons.phone, 'Emergency Contacts',
                   '/reminder_popup'),
               _drawerItem(context, Icons.history, 'History', '/history'),
               _drawerItem(context, Icons.person, 'Profile', '/profile'),

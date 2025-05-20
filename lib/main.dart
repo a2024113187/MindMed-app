@@ -160,7 +160,7 @@ class MindMedsApp extends StatelessWidget {
         '/register': (c) => const RegisterScreen(),
         '/home': (c) => const HomeScreen(),
         '/add_medication': (c) => const AddMedicationScreen(),
-        '/reminder_popup': (c) => const ReminderPopupScreen(),
+        '/reminder_popup': (c) => const EmergencyContactsScreen(),
         '/history': (c) => const HistoryScreen(),
         '/profile': (c) => const ProfileScreen(),
         '/accessibility': (c) => const AccessibilitySettingsScreen(),
